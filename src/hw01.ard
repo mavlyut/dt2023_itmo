@@ -18,15 +18,25 @@
    second' = flip (second 0)
 -}
 
+\func second (_ y _ : Nat) : Nat => y
+
+\func apply (f : Nat -> Nat) (x : Nat) : Nat => f x
+
+\func compose (f g : Nat -> Nat) (x : Nat) : Nat => f (g x)
+
+\func flip (f : Nat -> Nat -> Nat) (x y : Nat) : Nat => f y x
+
+\func second' => flip (second 0)
+
 -- 3. Расставьте приоритеты функций f1, f2, f3, f4, f5 и f6 так, чтобы функция test проходила тайпчекинг.
 
 \import lect01 \hiding (+,*)
 
 \func f1 (x y : Nat) => x
 \func f2 : Nat => 0
-\func f3 (f : Nat -> Nat) (z : Nat) : Int => 0
+\func \infix 5 f3 (f : Nat -> Nat) (z : Nat) : Int => 0
 \func f4 : Nat => 0
-\func f5 => f1
+\func \infix 6 f5 => f1
 \func f6 => f4
 
 \func test => f1 f2 f3 f4 f5 f6
@@ -38,20 +48,68 @@
    if False _ e = e
 -}
 
+\func if (cond then else : Bool) : Bool \elim cond
+  | true => then
+  | false => else
+
 -- 5. Определите || через if.
 
-\func \infixr 2 || (x y : Bool) : Bool => {?}
+\func \infixr 2 || (x y : Bool) : Bool =>
+  if x true y
 
 -- 6. Определите возведение в степень и факториал для натуральных чисел.
 
 \open Nat \hiding (-,div) -- Здесь лежат + и *.
 
-\func \infixr 8 ^ (x y : Nat) => {?}
+\func \infixr 8 ^ (x y : Nat): Nat \elim y
+  | 0 => 1
+  | suc z => x * (x ^ z)
 
-\func fac (x : Nat) => {?}
+\func fac (x : Nat) : Nat
+  | 0 => 1
+  | suc y => suc y * fac y
 
 -- 7. Определите mod и gcd.
 
-\func mod (x y : Nat) => {?}
+\func mod (x y : Nat) : Nat => help x x y
+  \where {
+    \func help (fuel x y : Nat) : Nat \elim fuel
+      | 0 => x
+      | suc fuel => lect01.if (x < y) x (help fuel (x - y) y)
+  }
 
-\func gcd (x y : Nat) => {?}
+\func gcd (x y : Nat) => help (x + y) (x + y) x
+  \where {
+    \func help (fuel x y : Nat) : Nat \elim fuel, y
+      | 0, _ => x
+      | _, 0 => x
+      | suc fuel, suc y => \let | yy => suc y
+                           \in help fuel yy (x `mod` yy)
+  }
+
+---------------------- TESTS ----------------------
+
+\func test_or_1 : true || true = true => idp
+\func test_or_2 : true || false = true => idp
+\func test_or_3 : false || true = true => idp
+\func test_or_4 : false || false = false => idp
+
+\func test_^_1 : 2 ^ 10 = 1024 => idp
+\func test_^_2 : 1024 ^ 0 = 1 => idp
+\func test_^_3 : 0 ^ 1032 = 0 => idp
+\func test_^_4 : 14 ^ 3 = 14 * 14 * 14 => idp
+
+\func test_fac_1 : fac 0 = 1 => idp
+\func test_fac_2 : fac 1 = 1 => idp
+\func test_fac_3 : fac 6 = 720 => idp
+\func test_fac_4 : fac 14 = 14 * fac 13 => idp
+
+\func test_mod_1 : mod 0 12 = 0 => idp
+\func test_mod_2 : mod 12 12 = 0 => idp
+\func test_mod_3 : mod 7 12 = 7 => idp
+\func test_mod_4 : mod 77 12 = 5 => idp
+
+\func test_gcd_1 : gcd 0 12 = 12 => idp
+\func test_gcd_2 : gcd 23 23 = 23 => idp
+\func test_gcd_3 : gcd (107 * 5) (107 * 7) = 107 => idp
+\func test_gcd_4 : gcd 77 12 = 1 => idp
