@@ -71,7 +71,8 @@
   => (\lam p => (f (inl p)).2, \lam q => (f (inr q)).1)
 
 -- t6 : ((((P -> Q) -> P) -> P) -> Q) -> Q
---\func t6 {P Q : \Type} (f : (((P -> Q) -> P) -> P) -> Q) : Q => {?}
+\func t6 {P Q : \Type} (f : (((P -> Q) -> P) -> P) -> Q) : Q
+  => f (\lam _x => _x (\lam p => f (\lam _ => p)))
 
 -- 7. Докажите следующие утверждения.
 
