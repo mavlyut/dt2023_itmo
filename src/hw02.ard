@@ -1,6 +1,7 @@
 \import Data.Bool
 \import Data.Or
 \import Logic
+\import Utils
 \import hw01 (fac)
 \import lect02 (++, List, nil, cons)
 
@@ -14,18 +15,16 @@
 -- 2. Реализуйте любой (but choose wisely) алгоритм сортировки. Функцию сравнения можно принимать в качестве аргумента.
 \func sort {A : \Type} (less : A -> A -> Bool) (lst : List A) : List A => help'sort (len lst) lst
   \where {
-    \func id {A : \Type} (a : A) : A => a
-
     \func len {A : \Type} (lst : List A) : Nat
       | nil => 0
       | cons _ xs => suc (len xs)
 
     \func filterBy (a : A) (lst : List A) : \Sigma (List A) (List A) -> \Sigma (List A) (List A) \elim lst
-      | nil => id
+      | nil => Utils.id
       | cons h xs => \lam (lt, gt) => if (less h a) (cons h lt, gt) (lt, cons h gt)
 
     \func help'sort (i : Nat) : List A -> List A \elim i
-      | 0 => id
+      | 0 => Utils.id
       | suc n => \lam lst => \case lst \with {
         | nil => nil
         | cons a xs => \case filterBy a xs (nil, nil) \with {
