@@ -245,8 +245,9 @@
   => Jalt (\lam a a' _ => B a -> B a') (\lam _ => Utils.id) p b
 
 \func sigma-contr {A : \Type} {a : A} (p : \Sigma (x : A) (a = x)) : (a,idp) = {\Sigma (x : A) (a = x)} p
-  => {?}
+  => Jalt (\lam a x a=x => (a,idp) = {\Sigma (x : A) (a = x)} (x, a=x)) (\lam _ => idp) p.2
 
 \func J' {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type)
          (b : B a idp)
-         {a' : A} (p : a = a') : B a' p => {?}
+         {a' : A} (p : a = a') : B a' p
+  => transport'' (Utils.uncurry B) (sigma-contr (a', p)) b
