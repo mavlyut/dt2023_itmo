@@ -1,0 +1,6 @@
+\module Utils \where {
+  \func id {A : \Type} (x : A) : A => x
+  \func const {A B : \Type} (x : A) : B -> A => \lam _ => x
+  \func flip {A B C : \Type} (f : A -> B -> C) : B -> A -> C => \lam y x => f x y
+  \func \infixr 5 >> {A B C : \Type} (f : B -> C) (g : A -> B) : A -> C => \lam x => f (g x)
+}
