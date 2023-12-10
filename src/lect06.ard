@@ -156,7 +156,7 @@ n <= suc m
 
 -- Например, предикат \lam n => n = 0 разрешим.
 \func decide0 : DecPred (\lam (n : Nat) => n = 0)
-  => {?}
+  => aux
   \where {
     \func aux (n : Nat) : Decide (n = 0)
       | 0 => yes idp
