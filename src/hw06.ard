@@ -1,52 +1,246 @@
 \import Data.Bool
 \import Data.List (List, length)
 \import Logic
-\import lect06
+\import Meta
+\import Paths
+\import Paths.Meta
+\import lect06 \hiding (Type)
 \open Nat(+,*)
 
 -- 1. Определите предикат принадлежности элемента списку.
 
-\data In {A : \Type} (a : A) (xs : List A)
+\data In {A : \Type} (a : A) (xs : List A) \elim xs
+  | h List.:: t => is-head (a = h)
+  | h List.:: t => in-tail (In a t)
 
 -- Optional:
 -- 2. Докажите эквивалентность четырех различных определений LessOrEq: lessOrEq, lessOrEq', LessOrEq и LessOrEq'.
 
+{-
+(1) lessOrEq  : exists k: n+m=k
+(2) lessOrEq' : 0 <= m [\Sigma], suc n <= 0 [Empty], suc n <= suc m [n <= m]
+(3) LessOrEq  : 0<=m; n <= m => suc n <= suc m
+(4) LessOrEq' : n<=n; n <= m => n <= suc m
+ -}
+
+\module eq-le-proofs \where {
+  \func eq:1->2 {n m : Nat} (le : lessOrEq n m) : lessOrEq' n m
+    | {0}, _ => ()
+    | {suc n}, {0}, le => \case le.2
+    | {suc n}, {suc m}, (k,p) => eq:1->2 (k, pmap pred p)
+
+  \func eq:1->3 {n m : Nat} (le : lessOrEq n m) : LessOrEq n m
+    | {0}, _ => zero<=_
+    | {suc n}, {0}, le => \case le.2
+    | {suc n}, {suc m}, (k,p) => suc<=suc (eq:1->3 (k, pmap pred p))
+
+  \func eq:1->4 {n m : Nat} (le : lessOrEq n m) : LessOrEq' n m
+    | {0}, {0}, le => <=-refl idp
+    | {0}, {suc m}, (k,p) => <=-step (eq:1->4 (pred k, rewrite p idp))
+    | {suc n}, {0}, le => \case le.2
+    | {suc n}, {suc m}, (k,p) => \case \elim k, p \with {
+      | 0, p => <=-refl p
+      | suc k, p => <=-step (eq:1->4 (k, pmap pred p))
+    }
+
+  \func eq:2->1 {n m : Nat} (le : lessOrEq' n m) : lessOrEq n m
+    | {0}, {m}, le => (m, idp)
+    | {suc n}, {suc m}, le => \let (k, proof) => eq:2->1 le \in (k, pmap suc proof)
+
+  \func eq:2->3 {n m : Nat} (le : lessOrEq' n m) : LessOrEq n m
+    | {0}, _ => zero<=_
+    | {suc n}, {suc m}, le => suc<=suc (eq:2->3 le)
+
+  \func eq:2->4 {n m : Nat} (le : lessOrEq' n m) : LessOrEq' n m
+    | {0}, {0}, () => <=-refl idp
+    | {0}, {suc m}, le => lem:le4:0<=n
+    | {suc n}, {suc m}, le => lem:le4:suc<=suc (eq:2->4 le)
+
+  \func eq:3->1 {n m : Nat} (le : LessOrEq n m) : lessOrEq n m
+    | {0}, {m}, zero<=_ => (m, idp)
+    | {suc n}, {suc m}, suc<=suc le => \let (k, proof) => eq:3->1 le \in (k, pmap suc proof)
+
+  \func eq:3->2 {n m : Nat} (le : LessOrEq n m) : lessOrEq' n m
+    | {0}, zero<=_ => ()
+    | {suc n}, {suc m}, suc<=suc le => eq:3->2 le
+
+  \func eq:3->4 {n m : Nat} (le : LessOrEq n m) : LessOrEq' n m
+    | {0}, zero<=_ => lem:le4:0<=n
+    | {suc n}, {suc m}, suc<=suc le => lem:le4:suc<=suc (eq:3->4 le)
+
+  \func eq:4->1 {n m : Nat} (le : LessOrEq' n m) : lessOrEq n m
+    | <=-refl p => (0, p)
+    | {n}, {suc m}, <=-step le => \let (k, p) => eq:4->1 le \in (suc k, rewrite p idp)
+
+  \func eq:4->2 {n m : Nat} (le : LessOrEq' n m) : lessOrEq' n m
+    | {n}, {m}, <=-refl p => rewrite p lem:le2:n<=n
+    | {n}, {suc m}, <=-step le => lem:le2:trans (eq:4->2 le) lem:le2:n<=n+1
+
+  \func eq:4->3 {n m : Nat} (le : LessOrEq' n m) : LessOrEq n m
+    | <=-refl p => rewrite p lem:le3:n<=n
+    | {n}, {suc m}, <=-step le => lem:le3:trans (eq:4->3 le) lem:le3:n<=n+1
+
+  \func lem:le2:n<=n {n : Nat} : lessOrEq' n n
+    | {0} => ()
+    | {suc n} => lem:le2:n<=n
+
+  \func lem:le2:n<=n+1 {n : Nat} : lessOrEq' n (suc n)
+    | {0} => ()
+    | {suc n} => lem:le2:n<=n+1
+
+  \func lem:le2:trans {n m k : Nat} (n<=m : lessOrEq' n m) (m<=k : lessOrEq' m k) : lessOrEq' n k
+    | {0}, _, _ => ()
+    | {suc n}, {suc m}, {suc k}, n<=m, m<=k => lem:le2:trans n<=m m<=k
+
+  \func lem:le3:n<=n {n : Nat} : LessOrEq n n \elim n
+    | 0 => zero<=_
+    | suc n => suc<=suc lem:le3:n<=n
+
+  \func lem:le3:trans {n m k : Nat} (n<=m : LessOrEq n m) (m<=k : LessOrEq m k) : LessOrEq n k
+    | {0}, _, _ => zero<=_
+    | {suc n}, {suc m}, {suc k}, suc<=suc n<=m, suc<=suc m<=k => suc<=suc (lem:le3:trans n<=m m<=k)
+
+  \func lem:le3:n<=n+1 {n : Nat} : LessOrEq n (suc n)
+    | {0} => zero<=_
+    | {suc n} => suc<=suc lem:le3:n<=n+1
+
+  \func lem:le4:0<=n {n : Nat} : LessOrEq' 0 n
+    | {0} => <=-refl idp
+    | {suc n} => <=-step lem:le4:0<=n
+
+  \func lem:le4:suc<=suc {n m : Nat} (le : LessOrEq' n m) : LessOrEq' (suc n) (suc m)
+    | <=-refl p => <=-refl (pmap suc p)
+    | {n}, {suc m}, <=-step le => <=-step (lem:le4:suc<=suc le)
+}
+-- можно было бы определить, например, импликации 1->2, 2->3, 3->4, 4->1, но я решил поупражняться
+
+\func le-equiv-defs (le le' : Nat -> Nat -> \Type)
+  => \Pi (n m : Nat) -> \Sigma (le n m -> le' n m) (le' n m -> le n m)
+
+\func eq:1<->2 : le-equiv-defs lessOrEq  lessOrEq' => \lam n m => (eq-le-proofs.eq:1->2, eq-le-proofs.eq:2->1)
+\func eq:1<->3 : le-equiv-defs lessOrEq  LessOrEq  => \lam n m => (eq-le-proofs.eq:1->3, eq-le-proofs.eq:3->1)
+\func eq:1<->4 : le-equiv-defs lessOrEq  LessOrEq' => \lam n m => (eq-le-proofs.eq:1->4, eq-le-proofs.eq:4->1)
+\func eq:2<->3 : le-equiv-defs lessOrEq' LessOrEq  => \lam n m => (eq-le-proofs.eq:2->3, eq-le-proofs.eq:3->2)
+\func eq:2<->4 : le-equiv-defs lessOrEq' LessOrEq' => \lam n m => (eq-le-proofs.eq:2->4, eq-le-proofs.eq:4->2)
+\func eq:3<->4 : le-equiv-defs LessOrEq  LessOrEq' => \lam n m => (eq-le-proofs.eq:3->4, eq-le-proofs.eq:4->3)
+
 -- 3. Определите рефлексивное транзитивное замыкание отношения.
 --    То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R.
 
-\data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+-- R* = U R^n for n in 0..inf
+\data DegRel {A : \Type} (R : A -> A -> \Type) (n : Nat) (x y : A) \elim n
+  | 0 => deg:zero (x = y)
+  | suc n => deg:suc (z : A) (R x z) (DegRel R n z y)
 
--- 4. Докажите, что если R уже рекфлексивно и транзитивно, то ReflTransClosure R эквивалентно R.
+\data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+  | deg (n : Nat) (DegRel R n x y)
+
+-- 4. Докажите, что если R уже рефлексивно и транзитивно, то ReflTransClosure R эквивалентно R.
 
 \func \infix 4 <-> (A B : \Type) => \Sigma (A -> B) (B -> A)
 
 \func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
   : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y
-  => {?}
+  => \lam x y => (\lam r => deg 1 (deg:suc y r (deg:zero idp)), \lam r => \case r \with {
+    | deg n degrel => help degrel
+  })
+  \where {
+    \func help {n : Nat} {x y : A} (r : DegRel R n x y) : R x y \elim n, r
+      | 0, deg:zero proof => rewrite proof (refl y)
+      | suc n, deg:suc z xrz zrry => trans x z y xrz (help zrry)
+  }
 
 -- 5. Определите предикат Sublist xs ys на списках, означающий "список xs является подсписком ys".
 
+\data Sublist {A : \Type} (xs ys : List A) \with
+  | List.nil, _ => nil-is-sublist
+  | x List.:: xs, y List.:: ys => head-eq (x = y) (Sublist xs ys)
+  | xs, y List.:: ys => skip-head (Sublist xs ys)
+
 -- 6. Докажите, что Sublist (filter p xs) xs для любых p и xs.
+
+\func filter-is-sublist {A : \Type} (p : A -> Bool) (lst : List A) : Sublist (filter p lst) lst \elim lst
+  | List.nil => nil-is-sublist
+  | a List.:: lst => \case p a \as b \return Sublist (\case b \with {
+    | true => a List.:: filter p lst
+    | false => filter p lst
+  }) (a List.:: lst) \with {
+    | false => skip-head (filter-is-sublist p lst)
+    | true => head-eq idp (filter-is-sublist p lst)
+  }
 
 -- 7. Определите filter через if, а не через \case.
 --     Докажите для этой версии filter лемму filter-lem.
 
-\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A => {?}
+\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | List.nil => List.nil
+  | a List.:: xs => if (p a) (a List.:: xs) xs
 
-\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : LessOrEq (length (filter' p xs)) (length xs) => {?}
+\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : LessOrEq (length (filter' p xs)) (length xs) \elim xs
+  | List.nil => zero<=_
+  | a List.:: xs => \case p a \as b \return LessOrEq (length (if b (a Data.List.:: xs) xs)) (suc (length xs)) \with {
+    | false => eq-le-proofs.lem:le3:n<=n+1
+    | true => eq-le-proofs.lem:le3:n<=n
+  }
 
 -- 8. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
+
+\func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x
+  => cases (f true arg addPath, f false arg addPath, x) \with {
+    | false, f1, false, f0, false => rewrite (f0,f0,f0) idp
+    | false, f1, false, f0, true => rewrite (f1,f0,f0) idp
+    | false, f1, true, f0, false => rewrite (f0,f1,f0) idp
+    | false, f1, true, f0, true => rewrite (f1,f0,f1) idp
+    | true, f1, false, f0, false => rewrite (f0,f0,f0) idp
+    | true, f1, false, f0, true => rewrite (f1,f1,f1) idp
+    | true, f1, true, f0, false => rewrite (f0,f1,f1) idp
+    | true, f1, true, f0, true => rewrite (f1,f1,f1) idp
+  }
 
 -- 9. Докажите, что предикат isEven разрешим.
 
 \func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
 
-\func isEven-dec : DecPred isEven => {?}
+\func isEven-dec : DecPred isEven => help \where {
+  \func help (n : Nat) : Decide (isEven n)
+    | 0 => yes (0, idp)
+    | 1 => no (\lam (k,pf:1=2k) => lem:1!=2k pf:1=2k)
+    | suc (suc a) => \case help a \with {
+      | yes (k,p) => yes (suc k, pmap (`+ 2) p)
+      | no !even-a => no (\lam even-a+2 => \case even-a+2 \with {
+        | (0, p) => \case p
+        | (suc k, p) => !even-a (k, pmap pred (pmap pred p))
+      })
+    }
+
+  \func lem:1!=2k {k : Nat} (p : 1 = 2 * k) : Empty \elim k
+    | 0 => \case p
+    | suc k => \case p
+}
 
 -- 10. Докажите, что если равенство элементов A разрешимо, то и равенство элементов List A тоже разрешимо.
 
 \instance ListEq {A : \Type} (dec : Eq A) : Eq (List A)
-  | decideEq => {?}
+  | decideEq (lst1 lst2 : List A) : Decide (lst1 = lst2) \with {
+    | List.nil, List.nil => yes idp
+    | List.nil, b List.:: r => no (\lam p => \case p)
+    | a List.:: l, List.nil => no (\lam p => \case p)
+    | a List.:: l, b List.:: r => \case dec.decideEq a b \with {
+      | yes a=b => \case decideEq l r \with {
+        | yes l=r => yes (rewrite (a=b, l=r) idp)
+        | no l!=r => no (\lam p => l!=r (pmap tail p))
+      }
+      | no a!=b => no (\lam p => a!=b (pmap (head a) p))
+    }}
+  \where {
+    \func head {A : \Type} (z : A) (xs : List A) : A \elim xs
+      | List.nil => z
+      | a List.:: _ => a
+
+    \func tail {A : \Type} (xs : List A) : List A \elim xs
+      | List.nil => List.nil
+      | _ List.:: xs => xs
+  }
 
 -- 11. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
@@ -70,4 +264,4 @@
 -- Это легко доказать при помощи исключенного третьего, но утверждение верно и без него.
 -- Докажите этот факт.
 \func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty
-  => {?}
+  => \let a => q (\lam a => p a a) \in p a a
