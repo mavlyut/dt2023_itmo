@@ -1,10 +1,14 @@
+\import Paths.Meta
+
 \module Utils \where {
   \func id {A : \Type} (x : A) : A => x
   \func const {A B : \Type} (x : A) : B -> A => \lam _ => x
   \func flip {A B C : \Type} (f : A -> B -> C) : B -> A -> C => \lam y x => f x y
-  \func \infixr 5 >> {A B C : \Type} (f : B -> C) (g : A -> B) : A -> C => \lam x => f (g x)
+  \func \infixl 1 & {A B : \Type} (x : A) (f : A -> B) : B => f x
   \func uncurry {A C : \Type} {B : A -> \Type} (f : \Pi (x : A) -> B x -> C) : \Sigma (x : A) (B x) -> C
     => \lam (x, y) => f x y
   \func curry {A C : \Type} {B : A -> \Type} (f : \Sigma (x : A) (B x) -> C) : \Pi (x : A) -> B x -> C
     => \lam x y => f (x, y)
+  \func \infixr 5 > {A B C : \Type} (f : B -> C) (g : A -> B) : A -> C => \lam x => f (g x)
+  \func comp_r_id {A B : \Type} {f : A -> B} : f > (\lam a => a) = f => ext (\lam a => idp)
 }
