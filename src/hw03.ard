@@ -52,14 +52,14 @@
   = m * n + (m + (k * n + k))   // +-assoc
   = m * n + m + (k * n + k)     // +-assoc
  -}
-\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n \elim n
+\func rdistr {n m k : Nat} : (m + k) * n = m * n + k * n \elim n
   | 0 => idp
   | suc n =>
-    (m + k) * n + (m + k)     ==< pmap (`+ (m + k)) (rdistr n m k) >==
-    (m * n + k * n) + (m + k) ==< +-assoc _ _ _ >==
+    (m + k) * n + (m + k)     ==< pmap (`+ (m + k)) rdistr >==
+    (m * n + k * n) + (m + k) ==< +-assoc (m * n) (k * n) (m + k) >==
     m * n + (k * n + (m + k)) ==< pmap (m * n +) (+-assoc' _ _ _) >==
     m * n + (k * n + m + k)   ==< pmap (m * n +) (pmap (`+ k) (+-comm (k * n) m)) >==
-    m * n + (m + k * n + k)   ==< pmap (m * n +) (+-assoc _ _ _) >==
+    m * n + (m + k * n + k)   ==< pmap (m * n +) (+-assoc m (k * n) k) >==
     m * n + (m + (k * n + k)) ==< +-assoc' _ _ _ >==
     m * n + m + (k * n + k)  `qed
   \where {
@@ -73,9 +73,9 @@
   = n * m + k * n // +-comm
   = n * m + n * k // +-comm
  -}
-\func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k =>
+\func ldistr {n m k : Nat} : n * (m + k) = n * m + n * k =>
     n * (m + k)   ==< *-comm _ _ >==
-    (m + k) * n   ==< rdistr _ _ _ >==
+    (m + k) * n   ==< rdistr >==
     m * n + k * n ==< pmap (`+ k * n) (*-comm _ _) >==
     n * m + k * n ==< pmap (n * m +) (*-comm _ _) >==
     n * m + n * k `qed
@@ -85,7 +85,7 @@
       | 0, suc y => *-comm 0 y
       | suc x, y =>
         suc x * y ==< idp >==
-        (x + 1) * y ==< rdistr _ _ _ >==
+        (x + 1) * y ==< rdistr >==
         x * y + 1 * y ==< cong leftId-for-1 >==
         x * y + y ==< pmap (`+ y) (*-comm x y) >==
         y * x + y `qed
