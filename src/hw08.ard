@@ -1,8 +1,20 @@
 \import Data.Bool
 \import Data.List \hiding (headDef)
+\import Function.Meta
+\import Meta
+\import Paths
+\import Function.Meta
+\import Paths.Meta
+\import Logic.Meta
+\import Prelude \hiding (::, nil)
+\import Utils
+\import hw03 (ldistr)
+\import hw05 (fac)
 \import hw06
 \import lect08
+\import Data.Maybe
 \import Order.LinearOrder
+\import Order.StrictOrder
 \open LinearOrder
 
 -- 1. Реализуйте функцию filter и докажите ее корректность, то есть, что выполнены следующие условия:
@@ -10,23 +22,132 @@
 --    * Все элементы filter p xs удовлетворяют предикату p
 --    * Любой подсписок xs с тем же свойством является подсписком filter p xs
 
+\func filter {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | a :: xs => \case p a \with {
+    | false => filter p xs
+    | true => a :: filter p xs
+  }
+
+\func filter:is-sublist {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => nil-is-sublist
+  | a :: xs => mcases \with {
+    | false => skip-head $ filter:is-sublist p xs
+    | true => head-eq idp $ filter:is-sublist p xs
+  }
+
+\type AllSatisfy {A : \Type} (p : A -> Bool) (xs : List A) => \Pi (x : A) -> In x xs -> So (p x)
+
+\func filter:all-satisfy {A : \Type} (p : A -> Bool) (xs : List A) : AllSatisfy p (filter p xs) \elim xs
+  | nil => \lam x i => \case i
+  | a :: xs => \lam x i => cases (p a arg addPath, i) \with {
+    | false, p_a=false, i => filter:all-satisfy p xs x i
+    | true, p_a=true, is-head x=a => rewrite x=a $ transportInv So p_a=true ()
+    | true, p_a=true, in-tail i => filter:all-satisfy p xs x i
+  }
+
+\func filter:is-maximal {A : \Type} (p : A -> Bool) (xs : List A) (ys : List A) (s : Sublist ys xs)
+  : AllSatisfy p ys -> Sublist ys (filter p xs) \elim xs, ys, s
+  | xs, nil, nil-is-sublist => Utils.const nil-is-sublist
+  | x :: xs, y :: ys, head-eq y=x ys-in-xs => \lam a => cases (p x arg addPath) \with {
+    | false, p_x=false => \case (rewrite (y=x,p_x=false) (a y (is-head idp)))
+    | true, p_x=true => head-eq y=x $ filter:is-maximal p xs ys ys-in-xs (\lam z z-in-xs => a z (in-tail z-in-xs))
+  }
+  | x :: xs, ys, skip-head ys-in-xs => \lam a => cases (p x) \with {
+    | false => filter:is-maximal p xs ys ys-in-xs a
+    | true => skip-head $ filter:is-maximal p xs ys ys-in-xs a
+  }
+
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
+
+\func lem:perm<=>sort {A : Dec} {l1 l2 : List A} : Perm l1 l2 <-> (sort l1 = sort l2) => (lem:perm->sort, lem:perm<-sort)
+  \where {
+    \open Insertion
+
+    \func lem:perm->sort {A : Dec} {l1 l2 : List A} (p : Perm l1 l2) : sort l1 = sort l2 \elim l1, l2, p
+      | nil, nil, perm-nil => idp
+      | x :: l3, y :: l4, perm-cons p p1 => rewrite p $ pmap (sort.insert y) $ lem:perm->sort p1
+      | l3, l4, perm-trans p1 p2 => lem:perm->sort p1 *> lem:perm->sort p2
+      | x :: (x' :: l3), y :: (y' :: l4), perm-swap x=y' x'=y l3=l4 => rewrite (x=y', x'=y, l3=l4) $ sort-perm.insert-comm y' y (sort l4)
+
+    \func lem:perm<-sort {A : Dec} {l1 l2 : List A} (s : sort l1 = sort l2) : Perm l1 l2
+      => perm-trans (sort-perm l1) (PermLem.perm:sym $ rewrite s $ sort-perm l2)
+  }
 
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
 
-\func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
-  => {?}
+\module PermLem \where {
+  \func perm:refl {A : Dec} {xs : List A} : Perm xs xs \elim xs
+    | nil => perm-nil
+    | a :: xs => perm-cons idp perm-refl
+
+  \func perm:sym {A : Dec} {xs ys : List A} (p : Perm xs ys) : Perm ys xs \elim xs, ys, p
+    | nil, nil, perm-nil => perm-nil
+    | x :: xs, y :: ys, perm-cons p1 p2 => perm-cons (inv p1) (perm:sym p2)
+    | xs, ys, perm-trans p1 p2 => perm-trans (perm:sym p2) (perm:sym p1)
+    | x :: (x' :: xs), y :: (y' :: ys), perm-swap p1 p2 p3 => perm-swap (inv p2) (inv p1) (inv p3)
+
+  \func perm:trans {A : Dec} {xs zs : List A} : \Pi {ys : List A} (xy : Perm xs ys) (yz : Perm ys zs) -> Perm xs zs
+    => perm-trans
+}
+
+\func completeness {A : Dec} (f : List A -> List A) (l : List A) (p : Perm l (f l)) (s : Sorted (f l)) : f l = sort l
+  => inv (lem:sorted->eq-sort s) <* lem:perm<=>sort.1 (perm:trans (perm:sym p) (sort-perm l)) *> lem:sorted->eq-sort (sort-sorted l)
+  \where {
+    \open Insertion
+    \open PermLem
+
+    \func lem:sorted->eq-sort {A : Dec} {l : List A} (s : Sorted l) : sort l = l \elim l, s
+      | nil, sorted-nil => idp
+      | x :: nil, sorted-cons sh st => idp
+      | x :: y :: xs, sorted-cons sh st => rewrite (lem:sorted->eq-sort st, dec<=_reduce sh) idp
+  }
 
 -- 4. Определите факториал через хвостовую рекурсию.
 --    Докажите, что он равен обычному определению факториала.
+
+\func tr-fac (n : Nat) : Nat => tail-rec-fac n 1
+  \where {
+    \open Prelude.Nat
+
+    \func tail-rec-fac (n : Nat) (ans : Nat) : Nat \elim n
+      | 0 => ans
+      | suc n => tail-rec-fac n (ans * suc n)
+  }
+
+\func fac-eq : tr-fac = fac => ext $ \lam n => fac-eq-help n 1 *> ldistr.*-comm 1 (fac n)
+  \where {
+    \open Prelude.Nat
+    \open tr-fac
+
+    \func fac-eq-help (n : Nat) (ans : Nat) : tail-rec-fac n ans = ans * fac n \elim n
+      | 0 => idp
+      | suc n => fac-eq-help n (ans * suc n) *> *-assoc
+
+    \func *-assoc {n m k : Nat} : (n * m) * k = n * (m * k) \elim k
+      | 0 => idp
+      | suc k =>
+        n * m * suc k       ==< idp >==
+        (n * m) * k + n * m ==< pmap (`+ n * m) *-assoc >==
+        n * (m * k) + n * m ==< inv ldistr >==
+        n * (m * k + m)     ==< idp >==
+        n * (m * suc k)     `qed
+  }
 
 -- 5. Определите функцию, которая проверяет правильность скобочной последовательности.
 --    Докажите ее корректность.
 
 \data Paren | Left | Right
 
-\func isBalanced (xs : List Paren) : Bool
-  => {?}
+\func isBalanced (xs : List Paren) : Bool => help 0 xs
+  \where {
+    \func help (bal : Nat) (xs : List Paren) : Bool
+      | 0, nil => true
+      | _, nil => false
+      | b, Left :: xs => help (suc b) xs
+      | 0, Right :: xs => false
+      | suc b, Right :: xs => help b xs
+  }
 
 \data Balanced (xs : List Paren) \with
   | nil => nil-balanced
