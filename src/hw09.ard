@@ -1,15 +1,58 @@
 \import Data.Maybe
-\import lect06 (Decide)
+\import Function.Meta
+\import Meta
+\import Paths.Meta
+\import Utils
+\import lect06 (Decide, yes, no)
 \import lect09
 
 -- 1. Определите отношение многошаговой редукции на Term.
 
-\func Red {V : \Set} (t s : Term V) : \Type => {?}
+\data Red {V : \Set} (t s : Term V)
+  | red-eq (t = s)
+  | red-step {z : Term V} (Red1 t z) (Red z s)
 
 -- 2. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм, к которому он редуцируется за 1 шаг, либо доказательство, что таких термов нет.
 --    Определите любую стратегию редукции.
 
-\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) => {?}
+\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
+  | var v => no \lam (s, red1) => \case red1
+  | app t1 t2 => \case strategy t1 \with {
+    | yes (s, t1~>s) => yes (app s t2, red-left t1~>s idp)
+    | no _l => \case strategy t2 \with {
+      | yes (s, t2~>s) => yes (app t1 s, red-right idp t2~>s)
+      | no _r => \case \elim t1 \with {
+        | lam f => yes (f >>= maybe t2 var, beta idp idp)
+        | var v => no \lam (s, red1) => cases (s, red1) \with {
+          | x, beta p p1 => \case p
+          | app x x1, red-left x2 p => {?}
+          | app x x1, red-right p x2 => {?}
+        }
+        | app t1 t3 => no \lam (s, red1) => cases (s, red1) \with {
+          | x, beta p p1 => \case p
+          | app x x1, red-left x2 p => {?}
+          | app x x1, red-right p x2 => {?}
+        }
+        | unit => no \lam (s, red1) => cases (s, red1) \with {
+          | x, beta p p1 => \case p
+          | app x x1, red-left x2 p => {?}
+          | app x x1, red-right p x2 => {?}
+        }
+      }
+--        no \lam (s, red1) => cases (s, red1) \with {
+--      | x, beta t1=lam_f x=f[t2] => {?}
+--      | app s1 s2, red-left t1~>s equ => _l (s1, t1~>s)
+--      | app s1 s2, red-right equ t2~>s => _r (s2, t2~>s)
+--      }
+    }
+  }
+  | lam t => \case strategy t \with {
+    | yes (s, red1) => yes (lam s, red-lam red1)
+    | no _x => no \lam (s, red1) => cases (s, red1) \with {
+      | lam f, red-lam red1' => _x (f, red1')
+    }
+  }
+  | unit => no \lam (s, red1) => \case red1
 
 -- 3. Докажите, что подтермы достижимого терма достижимы.
 
@@ -19,13 +62,15 @@
 \func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s
   => {?}
 
-\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t
-  => {?}
+\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim a
+  | acc f => acc \lam {a'} r => {?}
 
 -- 4. Докажите, что нейтральные термы замкнуты относительно редукций.
 
-\func neutralRed {V : \Set} {t s : Term V} (r : Red1 t s) (n : Neutral t) : Neutral s
-  => {?}
+\func neutralRed {V : \Set} {t s : Term V} (r : Red1 t s) (n : Neutral t) : Neutral s \elim t, s, r, n
+  | app t t1, s, beta p p1, app-neutral n a => {?}
+  | app t t1, app s s1, red-left r p, app-neutral n a => app-neutral {?} (rewriteI p a)
+  | app t t1, app s s1, red-right p r, app-neutral n a => app-neutral (rewriteI p n) (acc {?})
 
 -- 5. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
 
