@@ -21,29 +21,24 @@
     | yes (s, t1~>s) => yes (app s t2, red-left t1~>s idp)
     | no _l => \case strategy t2 \with {
       | yes (s, t2~>s) => yes (app t1 s, red-right idp t2~>s)
-      | no _r => \case \elim t1 \with {
-        | lam f => yes (f >>= maybe t2 var, beta idp idp)
-        | var v => no \lam (s, red1) => cases (s, red1) \with {
+      | no _r => cases (t1 arg addPath) \with {
+        | lam f, equ => yes (f >>= maybe t2 var, beta idp idp)
+        | var v, equ => no \lam (s, red1) => cases (s, red1) \with {
           | x, beta p p1 => \case p
-          | app x x1, red-left x2 p => {?}
-          | app x x1, red-right p x2 => {?}
+          | app x x1, red-left x2 p => _l (x, rewrite equ x2)
+          | app x x1, red-right p x2 => _r (x1, x2)
         }
-        | app t1 t3 => no \lam (s, red1) => cases (s, red1) \with {
+        | app t1 t3, equ => no \lam (s, red1) => cases (s, red1) \with {
           | x, beta p p1 => \case p
-          | app x x1, red-left x2 p => {?}
-          | app x x1, red-right p x2 => {?}
+          | app x x1, red-left x2 p => _l (x, rewrite equ x2)
+          | app x x1, red-right p x2 => _r (x1, x2)
         }
-        | unit => no \lam (s, red1) => cases (s, red1) \with {
+        | unit, equ => no \lam (s, red1) => cases (s, red1) \with {
           | x, beta p p1 => \case p
-          | app x x1, red-left x2 p => {?}
-          | app x x1, red-right p x2 => {?}
+          | app x x1, red-left x2 p => _l (x, rewrite equ x2)
+          | app x x1, red-right p x2 => _r (x1, x2)
         }
       }
---        no \lam (s, red1) => cases (s, red1) \with {
---      | x, beta t1=lam_f x=f[t2] => {?}
---      | app s1 s2, red-left t1~>s equ => _l (s1, t1~>s)
---      | app s1 s2, red-right equ t2~>s => _r (s2, t2~>s)
---      }
     }
   }
   | lam t => \case strategy t \with {
@@ -56,21 +51,21 @@
 
 -- 3. Докажите, что подтермы достижимого терма достижимы.
 
-\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
-  => {?}
+\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
+  | acc _x => acc \lam {a'} t~>a' => appAccLeft (_x (red-left t~>a' idp))
 
-\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s
-  => {?}
+\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s \elim a
+  | acc _x => acc \lam {a'} s~>a' => appAccRight (_x (red-right idp s~>a'))
 
 \func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim a
-  | acc f => acc \lam {a'} r => {?}
+  | acc _x => acc \lam {a'} t~>a' => subLamAcc (_x (red-lam t~>a'))
 
 -- 4. Докажите, что нейтральные термы замкнуты относительно редукций.
 
 \func neutralRed {V : \Set} {t s : Term V} (r : Red1 t s) (n : Neutral t) : Neutral s \elim t, s, r, n
-  | app t t1, s, beta p p1, app-neutral n a => {?}
-  | app t t1, app s s1, red-left r p, app-neutral n a => app-neutral {?} (rewriteI p a)
-  | app t t1, app s s1, red-right p r, app-neutral n a => app-neutral (rewriteI p n) (acc {?})
+  | app f x, res, beta f1=lam_f res=f[x], app-neutral n:f (acc a:x->f) => rewrite res=f[x] {?}
+  | app t1 t2, app s1 s2, red-left t1~>s1 t2=s2, app-neutral n:t1 a:t2 => app-neutral (neutralRed t1~>s1 n:t1) (rewriteI t2=s2 a:t2)
+  | app t1 t2, app s1 s2, red-right t1=s1 t2~>s2, app-neutral n:t1 (acc a:t2->f) => app-neutral (rewriteI t1=s1 n:t1) (a:t2->f t2~>s2)
 
 -- 5. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
 
@@ -84,8 +79,17 @@
 -- 6. Докажите, что если Г |- a : A и Red a a', то Г |- a' : A
 
 \func redLem {V : \Set} {ctx : V -> Type} {a a' : Term V} (r : Red a a') {A : Type} (h : hasType ctx a A)
-  : hasType ctx a' A
-  => {?}
+  : hasType ctx a' A \elim r
+  | red-eq p => rewriteI p h
+  | red-step a~>z z~~>a' => redLem z~~>a' (red1Lem a~>z h)
+  \where {
+    \func red1Lem {V : \Set} {ctx : V -> Type} {a a' : Term V} (r : Red1 a a') {A : Type} (h : hasType ctx a A)
+      : hasType ctx a' A \elim a, a', r, A, h
+      | app f x, res, beta f=lam_f1 res=f[x], A, app-type :t-f :t-x => {?}
+      | app t1 t2, app s1 s2, red-left t1~>s1 t2=s2, A, app-type :t-t1 :t-t2 => app-type (red1Lem t1~>s1 :t-t1) (rewriteI t2=s2 :t-t2)
+      | app t1 t2, app s1 s2, red-right t1=s1 t2~>s2, A, app-type :t-t1 :t-t2 => app-type (rewriteI t1=s1 :t-t1) (red1Lem t2~>s2 :t-t2)
+      | lam f, lam f', red-lam f~>f', Arr A B, lam-type :t-f => lam-type (red1Lem f~>f' :t-f)
+  }
 
 -- Optional
 -- 7. Для доказательства typeableInterp понадобится вспомогательное утверждение. Докажите его.
