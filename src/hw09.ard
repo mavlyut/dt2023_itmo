@@ -3,7 +3,9 @@
 \import Meta
 \import Paths.Meta
 \import Utils
+\import lect01 (Empty)
 \import lect06 (Decide, yes, no)
+\import lect07 (fmap)
 \import lect09
 
 -- 1. Определите отношение многошаговой редукции на Term.
@@ -63,18 +65,63 @@
 -- 4. Докажите, что нейтральные термы замкнуты относительно редукций.
 
 \func neutralRed {V : \Set} {t s : Term V} (r : Red1 t s) (n : Neutral t) : Neutral s \elim t, s, r, n
-  | app f x, res, beta f1=lam_f res=f[x], app-neutral n:f (acc a:x->f) => rewrite res=f[x] {?}
+  | app f x, res, beta f=lam_f' res=f[x], app-neutral n:f (acc a:x->f) => \case (lem:lam->!neutral f=lam_f' n:f)
   | app t1 t2, app s1 s2, red-left t1~>s1 t2=s2, app-neutral n:t1 a:t2 => app-neutral (neutralRed t1~>s1 n:t1) (rewriteI t2=s2 a:t2)
   | app t1 t2, app s1 s2, red-right t1=s1 t2~>s2, app-neutral n:t1 (acc a:t2->f) => app-neutral (rewriteI t1=s1 n:t1) (a:t2->f t2~>s2)
+  \where {
+    \func lem:lam->!neutral {V : \Set} {f : Term V} {f' : Term (Maybe V)} (p : f = lam f') (n : Neutral f) : Empty \elim f, n
+      | var _, var-neutral => \case p
+      | unit, unit-neutral => \case p
+      | app _ _, app-neutral _ _ => \case p
+  }
 
 -- 5. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
 
 \func substLem {U V : \Set} (ctx : U -> Type) (b : Term U) (B : Type) (h : hasType ctx b B)
                (ctx' : V -> Type) (a : U -> Term V) (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u))
-  : hasType ctx' (b >>= a) B
-  => {?}
+  : hasType ctx' (b >>= a) B \elim b, B, h
+  | unit, Unit, unit-type => unit-type
+  | var v, B, var-type ctx_v=B => rewriteI ctx_v=B (h' v)
+  | app f x, B, app-type {A} :t-f :t-x => app-type (substLem ctx f (Arr A B) :t-f ctx' a h') (substLem ctx x A :t-x ctx' a h')
+  | lam f, Arr A B, lam-type h => lam-type $ substLem (maybe A ctx) f B h (maybe A ctx') (liftM a) (unfold liftM $ \case \elim __ \with {
+    | nothing => var-type idp
+    | just uu => cases (ctx uu, a uu, h' uu) \with {
+      | Unit, unit, unit-type => unit-type
+      | _, var v, var-type p => var-type p
+      | _, app f x, app-type :t-f :t-x => app-type (lem:subst-termMap just f :t-f) (lem:subst-termMap just x :t-x)
+      | Arr _ _, lam f, lam-type :t-f => lam-type (lem:subst-termMap (fmap just) f (rewrite lem:maybe-fmap :t-f))
+    }
+  })
+  \where {
+    \func lem:subst-termMap {U V : \Set} {ctx : V -> Type} (f : U -> V) (t : Term U) {A : Type} (:t-t : hasType (\lam u => ctx (f u)) t A)
+      : hasType ctx (termMap f t) A \elim t, A, :t-t
+      | unit, Unit, unit-type => unit-type
+      | var v, A, var-type p => var-type p
+      | app t1 t2, A, app-type :t-t1 :t-t2 => app-type (lem:subst-termMap f t1 :t-t1) (lem:subst-termMap f t2 :t-t2)
+      | lam g, Arr A B, lam-type :t-g => lam-type (lem:subst-termMap (fmap f) g (rewrite lem:maybe-comp :t-g))
 
-\func substLem1 => {?}
+    \func lem:maybe-comp {A B C : \Set} {z : B} {f : C -> A} {g : A -> B} : (\lam u => maybe z g (fmap f u)) = maybe z (\lam u => g (f u))
+      => ext \case \elim __ \with {
+        | nothing => idp
+        | just _ => idp
+      }
+
+    \func lem:maybe-fmap {A B : \Set} {z z' : B} {f : A -> B} : (\lam u => maybe z (maybe z' f) (fmap just u)) = maybe z f
+      => ext \case \elim __ \with {
+        | nothing => idp
+        | just _ => idp
+      }
+  }
+
+-- Г, x : A |- b : B       Г |- a : A
+-- ----------------------------------
+--           Г |- b[a/x] : B
+\func substLem1 {V : \Set} (ctx : V -> Type) {A B : Type} {x : Term V} (:t-x : hasType ctx x A)
+                {f : Term (Maybe V)} (:t-f : hasType (maybe A ctx) f B) : hasType ctx (f >>= maybe x var) B
+  => substLem (maybe A ctx) f B :t-f ctx (maybe x var) $ \case \elim __ \with {
+    | nothing => :t-x
+    | just a => var-type idp
+  }
 
 -- 6. Докажите, что если Г |- a : A и Red a a', то Г |- a' : A
 
@@ -85,7 +132,9 @@
   \where {
     \func red1Lem {V : \Set} {ctx : V -> Type} {a a' : Term V} (r : Red1 a a') {A : Type} (h : hasType ctx a A)
       : hasType ctx a' A \elim a, a', r, A, h
-      | app f x, res, beta f=lam_f1 res=f[x], A, app-type :t-f :t-x => {?}
+      | app f x, res, beta {f'} f=lam_f' res=f[x], B, app-type {A} :t-f :t-x => rewrite res=f[x] (cases (rewrite f=lam_f' :t-f) \with {
+        | lam-type :t-f' => substLem1 ctx :t-x :t-f'
+      })
       | app t1 t2, app s1 s2, red-left t1~>s1 t2=s2, A, app-type :t-t1 :t-t2 => app-type (red1Lem t1~>s1 :t-t1) (rewriteI t2=s2 :t-t2)
       | app t1 t2, app s1 s2, red-right t1=s1 t2~>s2, A, app-type :t-t1 :t-t2 => app-type (rewriteI t1=s1 :t-t1) (red1Lem t2~>s2 :t-t2)
       | lam f, lam f', red-lam f~>f', Arr A B, lam-type :t-f => lam-type (red1Lem f~>f' :t-f)
